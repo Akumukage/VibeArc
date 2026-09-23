@@ -1,9 +1,16 @@
 package com.vibearc.app
 
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.text.format.DateUtils
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,9 +30,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -58,15 +65,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -76,17 +87,9 @@ private val Surface = Color(0xFF111729)
 private val Lime = Color(0xFFC8FF00)
 private val Cyan = Color(0xFF1DE9D3)
 
-private data class Track(
-    val title: String,
-    val artist: String,
-    val album: String,
-)
+private data class Track(val title: String, val artist: String, val album: String)
 
-private val demoTrack = Track(
-    title = "First Light",
-    artist = "VibeArc Demo",
-    album = "Signals",
-)
+private val demoTrack = Track("First Light", "VibeArc Demo", "Signals")
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -112,27 +115,63 @@ private fun VibeArcTheme(content: @Composable () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun VibeArcApp() {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val player = remember {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri("android.resource://${context.packageName}/${R.raw.vibearc_demo}"))
-            prepare()
+    val context = LocalContext.current
+    val controllerFuture = remember {
+        MediaController.Builder(
+            context,
+            SessionToken(context, ComponentName(context, PlaybackService::class.java)),
+        ).buildAsync()
+    }
+    var player by remember { mutableStateOf<Player?>(null) }
+
+    DisposableEffect(controllerFuture) {
+        controllerFuture.addListener(
+            { player = controllerFuture.get() },
+            ContextCompat.getMainExecutor(context),
+        )
+        onDispose {
+            player = null
+            MediaController.releaseFuture(controllerFuture)
         }
     }
-    var currentTab by remember { mutableStateOf(Tab.Home) }
-    var isPlaying by remember { mutableStateOf(false) }
 
-    DisposableEffect(player) {
+    val activePlayer = player
+    if (activePlayer == null) {
+        Box(Modifier.fillMaxSize().background(Midnight), contentAlignment = Alignment.Center) {
+            Text("Starting VibeArc…", color = Color.White)
+        }
+        return
+    }
+
+    val demoUri = remember { Uri.parse("android.resource://${context.packageName}/${R.raw.vibearc_demo}") }
+    if (activePlayer.mediaItemCount == 0) activePlayer.load(demoTrack, demoUri, false)
+
+    var currentTab by remember { mutableStateOf(Tab.Home) }
+    var currentTrack by remember { mutableStateOf(activePlayer.currentMediaItem?.track ?: demoTrack) }
+    var isPlaying by remember { mutableStateOf(activePlayer.isPlaying) }
+
+    DisposableEffect(activePlayer) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(value: Boolean) {
                 isPlaying = value
             }
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                mediaItem?.let { currentTrack = it.track }
+            }
         }
-        player.addListener(listener)
-        onDispose {
-            player.removeListener(listener)
-            player.release()
+        activePlayer.addListener(listener)
+        onDispose { activePlayer.removeListener(listener) }
+    }
+
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
+        currentTrack = context.trackFrom(uri)
+        activePlayer.load(currentTrack, uri)
+        currentTab = Tab.Player
     }
 
     Scaffold(
@@ -151,10 +190,10 @@ private fun VibeArcApp() {
             Column {
                 if (currentTab != Tab.Player) {
                     MiniPlayer(
-                        track = demoTrack,
+                        track = currentTrack,
                         isPlaying = isPlaying,
                         onOpen = { currentTab = Tab.Player },
-                        onToggle = { if (player.isPlaying) player.pause() else player.play() },
+                        onToggle = activePlayer::toggle,
                     )
                 }
                 NavigationBar(containerColor = Surface) {
@@ -171,19 +210,27 @@ private fun VibeArcApp() {
         },
         containerColor = Midnight,
     ) { padding ->
+        val playDemo = {
+            currentTrack = demoTrack
+            activePlayer.load(demoTrack, demoUri)
+            currentTab = Tab.Player
+        }
         when (currentTab) {
-            Tab.Home -> HomeScreen(padding) {
-                player.seekTo(0)
-                player.play()
+            Tab.Home -> HomeScreen(padding, playDemo)
+            Tab.Search -> SearchScreen(padding, currentTrack) {
+                activePlayer.play()
                 currentTab = Tab.Player
             }
-            Tab.Search -> SearchScreen(padding) {
-                player.seekTo(0)
-                player.play()
-                currentTab = Tab.Player
-            }
-            Tab.Library -> LibraryScreen(padding)
-            Tab.Player -> PlayerScreen(padding, player, isPlaying)
+            Tab.Library -> LibraryScreen(
+                padding = padding,
+                track = currentTrack,
+                onChooseFile = { filePicker.launch(arrayOf("audio/*")) },
+                onPlay = {
+                    activePlayer.play()
+                    currentTab = Tab.Player
+                },
+            )
+            Tab.Player -> PlayerScreen(padding, activePlayer, currentTrack, isPlaying)
         }
     }
 }
@@ -191,7 +238,7 @@ private fun VibeArcApp() {
 private enum class Tab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Home("Home", Icons.Default.Home),
     Search("Search", Icons.Default.Search),
-    Library("Library", Icons.Default.List),
+    Library("Library", Icons.AutoMirrored.Filled.List),
     Player("Playing", Icons.Default.PlayArrow),
 }
 
@@ -204,7 +251,7 @@ private fun HomeScreen(padding: PaddingValues, onPlay: () -> Unit) {
     ) {
         item {
             Text("Good evening", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("A tiny demo now. Your music library comes next.", color = Color.LightGray)
+            Text("Play the demo or choose your own audio from Library.", color = Color.LightGray)
         }
         item {
             Card(
@@ -230,7 +277,7 @@ private fun HomeScreen(padding: PaddingValues, onPlay: () -> Unit) {
         item { SectionTitle("Made for this build") }
         item { TrackRow(demoTrack, onPlay) }
         item { SectionTitle("Coming next") }
-        items(listOf("Your local library", "Synced lyrics", "Smart mixes")) { feature ->
+        items(listOf("Saved library", "Synced lyrics", "Smart mixes")) { feature ->
             Card(colors = CardDefaults.cardColors(containerColor = Surface)) {
                 Text(feature, Modifier.fillMaxWidth().padding(18.dp), fontWeight = FontWeight.SemiBold)
             }
@@ -239,7 +286,7 @@ private fun HomeScreen(padding: PaddingValues, onPlay: () -> Unit) {
 }
 
 @Composable
-private fun SearchScreen(padding: PaddingValues, onPlay: () -> Unit) {
+private fun SearchScreen(padding: PaddingValues, track: Track, onPlay: () -> Unit) {
     var query by remember { mutableStateOf("") }
     Column(
         Modifier.fillMaxSize().padding(padding).padding(20.dp),
@@ -254,37 +301,51 @@ private fun SearchScreen(padding: PaddingValues, onPlay: () -> Unit) {
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             singleLine = true,
         )
-        if (query.isBlank() || demoTrack.title.contains(query, ignoreCase = true) || demoTrack.artist.contains(query, ignoreCase = true)) {
-            TrackRow(demoTrack, onPlay)
+        if (query.isBlank() || listOf(track.title, track.artist, track.album).any { it.contains(query, true) }) {
+            TrackRow(track, onPlay)
         } else {
-            Text("No demo tracks match “$query”.", color = Color.LightGray)
+            Text("No tracks match “$query”.", color = Color.LightGray)
         }
     }
 }
 
 @Composable
-private fun LibraryScreen(padding: PaddingValues) {
+private fun LibraryScreen(
+    padding: PaddingValues,
+    track: Track,
+    onChooseFile: () -> Unit,
+    onPlay: () -> Unit,
+) {
     Column(
         Modifier.fillMaxSize().padding(padding).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         Text("Library", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Button(onClick = onChooseFile, modifier = Modifier.fillMaxWidth()) {
+            Text("Choose audio file")
+        }
+        Text("Now loaded", color = Color.LightGray)
+        TrackRow(track, onPlay)
         Card(colors = CardDefaults.cardColors(containerColor = Surface)) {
             Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Favorite, contentDescription = null, tint = Lime)
                 Spacer(Modifier.width(16.dp))
                 Column {
                     Text("Favorites", fontWeight = FontWeight.Bold)
-                    Text("Your liked tracks will live here", color = Color.LightGray)
+                    Text("Saved favorites arrive in the next milestone", color = Color.LightGray)
                 }
             }
         }
-        Text("Local file selection arrives in the next milestone.", color = Color.LightGray)
     }
 }
 
 @Composable
-private fun PlayerScreen(padding: PaddingValues, player: ExoPlayer, isPlaying: Boolean) {
+private fun PlayerScreen(
+    padding: PaddingValues,
+    player: Player,
+    track: Track,
+    isPlaying: Boolean,
+) {
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(1L) }
 
@@ -303,13 +364,13 @@ private fun PlayerScreen(padding: PaddingValues, player: ExoPlayer, isPlaying: B
     ) {
         Image(
             painter = painterResource(R.drawable.vibearc_icon),
-            contentDescription = "VibeArc demo artwork",
+            contentDescription = "VibeArc artwork",
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(32.dp)),
             contentScale = ContentScale.FillWidth,
         )
         Spacer(Modifier.height(28.dp))
-        Text(demoTrack.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
-        Text(demoTrack.artist, color = Cyan)
+        Text(track.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+        Text(track.artist, color = Cyan)
         Spacer(Modifier.height(20.dp))
         Slider(
             value = position.coerceAtMost(duration).toFloat(),
@@ -323,7 +384,7 @@ private fun PlayerScreen(padding: PaddingValues, player: ExoPlayer, isPlaying: B
         }
         Spacer(Modifier.height(12.dp))
         IconButton(
-            onClick = { if (player.isPlaying) player.pause() else player.play() },
+            onClick = player::toggle,
             modifier = Modifier.size(72.dp).background(Lime, RoundedCornerShape(36.dp)),
         ) {
             Text(
@@ -389,4 +450,43 @@ private fun TrackRow(track: Track, onPlay: () -> Unit) {
 @Composable
 private fun SectionTitle(text: String) {
     Text(text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+}
+
+private fun Player.load(track: Track, uri: Uri, playNow: Boolean = true) {
+    setMediaItem(
+        MediaItem.Builder()
+            .setUri(uri)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(track.title)
+                    .setArtist(track.artist)
+                    .setAlbumTitle(track.album)
+                    .build(),
+            )
+            .build(),
+    )
+    prepare()
+    if (playNow) play()
+}
+
+private fun Player.toggle() = if (isPlaying) pause() else play()
+
+private val MediaItem.track: Track
+    get() = Track(
+        title = mediaMetadata.title?.toString() ?: "Unknown track",
+        artist = mediaMetadata.artist?.toString() ?: "On this device",
+        album = mediaMetadata.albumTitle?.toString() ?: "Imported",
+    )
+
+private fun Context.trackFrom(uri: Uri): Track {
+    val fileName = contentResolver.query(
+        uri,
+        arrayOf(OpenableColumns.DISPLAY_NAME),
+        null,
+        null,
+        null,
+    )?.use { cursor ->
+        if (cursor.moveToFirst()) cursor.getString(0) else null
+    }.orEmpty()
+    return Track(fileName.substringBeforeLast('.').ifBlank { "Local audio" }, "On this device", "Imported")
 }
