@@ -368,51 +368,6 @@ private enum class Tab(val label: String, val icon: androidx.compose.ui.graphics
 }
 
 @Composable
-private fun SettingsScreen(padding: PaddingValues) {
-    val context = LocalContext.current
-    var selectedIcon by remember { mutableStateOf(context.selectedLauncherIcon()) }
-    var resultMessage by remember { mutableStateOf<String?>(null) }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(padding),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
-    ) {
-        item { Text("Make VibeArc yours", style = MaterialTheme.typography.headlineMedium) }
-        item { Text("Choose the icon shown on your home screen.", color = MutedText) }
-        items(LauncherIconChoice.entries, key = LauncherIconChoice::name) { choice ->
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = if (choice == selectedIcon) MaterialTheme.colorScheme.primaryContainer else PanelRaised,
-                ),
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth().clickable {
-                    if (context.setLauncherIcon(choice)) {
-                        selectedIcon = choice
-                        resultMessage = "${choice.label} icon selected"
-                    } else {
-                        resultMessage = "Could not change the icon"
-                    }
-                },
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(18.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(choice.label, fontWeight = FontWeight.Bold)
-                        Text(if (choice == selectedIcon) "Selected" else "Tap to use", color = MutedText)
-                    }
-                    if (choice == selectedIcon) Text("✓", color = Sand, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-        resultMessage?.let { message -> item { Text(message, color = Sand) } }
-        item { Text("Some launchers take a moment to refresh the icon.", color = MutedText, fontSize = 12.sp) }
-    }
-}
-
-@Composable
 private fun HomeScreen(
     padding: PaddingValues,
     recentTracks: List<Track>,
@@ -527,11 +482,13 @@ private fun LibraryScreen(
     val visibleTracks = if (mode == LibraryMode.Favorites) tracks.filter(Track::isFavorite) else tracks
     val selectedPlaylist = playlists.firstOrNull { it.id == selectedPlaylistId }
     val playlistTracks = selectedPlaylist?.trackUris.orEmpty().mapNotNull { uri -> tracks.firstOrNull { it.uri == uri } }
-    val groupedTracks = when (mode) {
-        LibraryMode.Artists -> tracks.groupBy { it.artist.ifBlank { "Unknown artist" } }
-        LibraryMode.Albums -> tracks.groupBy { it.album.ifBlank { "Unknown album" } }
-        LibraryMode.Folders -> tracks.groupBy { it.folder.ifBlank { "Imported" } }
-        else -> emptyMap()
+    val groupedTracks = remember(tracks, mode) {
+        when (mode) {
+            LibraryMode.Artists -> tracks.groupBy { it.artist.ifBlank { "Unknown artist" } }
+            LibraryMode.Albums -> tracks.groupBy { it.album.ifBlank { "Unknown album" } }
+            LibraryMode.Folders -> tracks.groupBy { it.folder.ifBlank { "Imported" } }
+            else -> emptyMap()
+        }
     }
 
     LazyColumn(

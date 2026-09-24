@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp"
-    android:height="48dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path android:fillColor="@color/icon_peach_background" android:pathData="M0,0 H108 V108 H0 Z" />
-    <path android:fillColor="@color/icon_sand" android:pathData="M18,58 C26,58 29,40 38,40 C47,40 47,72 57,72 C66,72 70,39 79,39 C87,39 90,57 96,57 L96,65 C85,65 83,49 78,49 C72,49 69,82 57,82 C42,82 42,50 37,50 C32,50 30,68 18,68 Z" />
-    <path android:fillColor="@color/icon_background" android:pathData="M49,45 L49,64 L65,54.5 Z" />
-</vector>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/icon_peach_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground_peach" />
+    <monochrome android:drawable="@drawable/ic_launcher_foreground_mono" />
+</adaptive-icon>
