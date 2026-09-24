@@ -13,12 +13,43 @@
         android:theme="@style/Theme.VibeArc">
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true" />
+        <activity-alias
+            android:name=".DefaultIconAlias"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".PeachIconAlias"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_peach"
+            android:roundIcon="@mipmap/ic_launcher_peach"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".MonoIconAlias"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_mono"
+            android:roundIcon="@mipmap/ic_launcher_mono"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
         <service
             android:name=".PlaybackService"
             android:exported="true"

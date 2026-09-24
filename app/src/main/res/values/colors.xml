@@ -3,4 +3,7 @@
     <color name="icon_background">#181513</color>
     <color name="icon_sand">#F2D2B2</color>
     <color name="icon_peach">#FFB77D</color>
+    <color name="icon_peach_background">#A84D24</color>
+    <color name="icon_mono_background">#EEE8E1</color>
+    <color name="icon_mono_foreground">#1E1B18</color>
 </resources>
