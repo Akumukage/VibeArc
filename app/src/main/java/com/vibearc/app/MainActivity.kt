@@ -87,8 +87,6 @@ private val Surface = Color(0xFF111729)
 private val Lime = Color(0xFFC8FF00)
 private val Cyan = Color(0xFF1DE9D3)
 
-private data class Track(val title: String, val artist: String, val album: String)
-
 private val demoTrack = Track("First Light", "VibeArc Demo", "Signals")
 
 class MainActivity : ComponentActivity() {
