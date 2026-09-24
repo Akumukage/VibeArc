@@ -50,3 +50,12 @@ internal fun Context.saveLibrary(tracks: List<Track>) {
         .putString(TracksKey, LibraryCodec.encode(tracks))
         .apply()
 }
+
+internal fun List<Track>.upsert(track: Track): List<Track> {
+    val favorite = firstOrNull { it.uri == track.uri }?.isFavorite ?: track.isFavorite
+    return filterNot { it.uri == track.uri } + track.copy(isFavorite = favorite)
+}
+
+internal fun List<Track>.toggleFavorite(uri: String): List<Track> = map { track ->
+    if (track.uri == uri) track.copy(isFavorite = !track.isFavorite) else track
+}

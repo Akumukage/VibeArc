@@ -39,6 +39,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -145,17 +146,23 @@ private fun VibeArcApp() {
     if (activePlayer.mediaItemCount == 0) activePlayer.load(demoTrack, demoUri, false)
 
     var currentTab by remember { mutableStateOf(Tab.Home) }
-    var currentTrack by remember { mutableStateOf(activePlayer.currentMediaItem?.track ?: demoTrack) }
+    var library by remember { mutableStateOf(context.loadLibrary()) }
+    val restoredTrack = activePlayer.currentMediaItem?.track
+    var currentTrack by remember {
+        mutableStateOf(library.firstOrNull { it.uri == restoredTrack?.uri } ?: restoredTrack ?: demoTrack)
+    }
     var isPlaying by remember { mutableStateOf(activePlayer.isPlaying) }
 
-    DisposableEffect(activePlayer) {
+    DisposableEffect(activePlayer, library) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(value: Boolean) {
                 isPlaying = value
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                mediaItem?.let { currentTrack = it.track }
+                mediaItem?.track?.let { track ->
+                    currentTrack = library.firstOrNull { it.uri == track.uri } ?: track
+                }
             }
         }
         activePlayer.addListener(listener)
@@ -167,9 +174,21 @@ private fun VibeArcApp() {
         runCatching {
             context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        currentTrack = context.trackFrom(uri)
+        val imported = context.trackFrom(uri)
+        library = library.upsert(imported).also(context::saveLibrary)
+        currentTrack = library.first { it.uri == imported.uri }
         activePlayer.load(currentTrack, uri)
         currentTab = Tab.Player
+    }
+
+    val playTrack: (Track) -> Unit = { track ->
+        currentTrack = track
+        activePlayer.load(track, if (track.uri.isBlank()) demoUri else Uri.parse(track.uri))
+        currentTab = Tab.Player
+    }
+    val toggleFavorite: (Track) -> Unit = { track ->
+        library = library.toggleFavorite(track.uri).also(context::saveLibrary)
+        library.firstOrNull { it.uri == track.uri }?.let { currentTrack = it }
     }
 
     Scaffold(
@@ -208,27 +227,23 @@ private fun VibeArcApp() {
         },
         containerColor = Midnight,
     ) { padding ->
-        val playDemo = {
-            currentTrack = demoTrack
-            activePlayer.load(demoTrack, demoUri)
-            currentTab = Tab.Player
-        }
         when (currentTab) {
-            Tab.Home -> HomeScreen(padding, playDemo)
-            Tab.Search -> SearchScreen(padding, currentTrack) {
-                activePlayer.play()
-                currentTab = Tab.Player
-            }
+            Tab.Home -> HomeScreen(padding) { playTrack(demoTrack) }
+            Tab.Search -> SearchScreen(padding, listOf(demoTrack) + library, playTrack)
             Tab.Library -> LibraryScreen(
                 padding = padding,
-                track = currentTrack,
+                tracks = library,
                 onChooseFile = { filePicker.launch(arrayOf("audio/*")) },
-                onPlay = {
-                    activePlayer.play()
-                    currentTab = Tab.Player
-                },
+                onPlay = playTrack,
+                onToggleFavorite = toggleFavorite,
             )
-            Tab.Player -> PlayerScreen(padding, activePlayer, currentTrack, isPlaying)
+            Tab.Player -> PlayerScreen(
+                padding,
+                activePlayer,
+                currentTrack,
+                isPlaying,
+                if (currentTrack.uri.isBlank()) null else { { toggleFavorite(currentTrack) } },
+            )
         }
     }
 }
@@ -275,7 +290,7 @@ private fun HomeScreen(padding: PaddingValues, onPlay: () -> Unit) {
         item { SectionTitle("Made for this build") }
         item { TrackRow(demoTrack, onPlay) }
         item { SectionTitle("Coming next") }
-        items(listOf("Saved library", "Synced lyrics", "Smart mixes")) { feature ->
+        items(listOf("Synced lyrics", "Smart mixes")) { feature ->
             Card(colors = CardDefaults.cardColors(containerColor = Surface)) {
                 Text(feature, Modifier.fillMaxWidth().padding(18.dp), fontWeight = FontWeight.SemiBold)
             }
@@ -284,25 +299,30 @@ private fun HomeScreen(padding: PaddingValues, onPlay: () -> Unit) {
 }
 
 @Composable
-private fun SearchScreen(padding: PaddingValues, track: Track, onPlay: () -> Unit) {
+private fun SearchScreen(padding: PaddingValues, tracks: List<Track>, onPlay: (Track) -> Unit) {
     var query by remember { mutableStateOf("") }
-    Column(
-        Modifier.fillMaxSize().padding(padding).padding(20.dp),
+    val results = tracks.filter { track ->
+        query.isBlank() || listOf(track.title, track.artist, track.album).any { it.contains(query, true) }
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(padding),
+        contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Text("Search", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Tracks, artists, albums") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            singleLine = true,
-        )
-        if (query.isBlank() || listOf(track.title, track.artist, track.album).any { it.contains(query, true) }) {
-            TrackRow(track, onPlay)
-        } else {
-            Text("No tracks match “$query”.", color = Color.LightGray)
+        item { Text("Search", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }
+        item {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Tracks, artists, albums") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                singleLine = true,
+            )
+        }
+        if (results.isEmpty()) item { Text("No tracks match “$query”.", color = Color.LightGray) }
+        items(results, key = { it.uri.ifBlank { "demo" } }) { track ->
+            TrackRow(track, onPlay = { onPlay(track) })
         }
     }
 }
@@ -310,29 +330,53 @@ private fun SearchScreen(padding: PaddingValues, track: Track, onPlay: () -> Uni
 @Composable
 private fun LibraryScreen(
     padding: PaddingValues,
-    track: Track,
+    tracks: List<Track>,
     onChooseFile: () -> Unit,
-    onPlay: () -> Unit,
+    onPlay: (Track) -> Unit,
+    onToggleFavorite: (Track) -> Unit,
 ) {
-    Column(
-        Modifier.fillMaxSize().padding(padding).padding(20.dp),
+    var favoritesOnly by remember { mutableStateOf(false) }
+    val visibleTracks = if (favoritesOnly) tracks.filter(Track::isFavorite) else tracks
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(padding),
+        contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Text("Library", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Button(onClick = onChooseFile, modifier = Modifier.fillMaxWidth()) {
-            Text("Choose audio file")
+        item { Text("Library", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }
+        item {
+            Button(onClick = onChooseFile, modifier = Modifier.fillMaxWidth()) {
+                Text("Add audio file")
+            }
         }
-        Text("Now loaded", color = Color.LightGray)
-        TrackRow(track, onPlay)
-        Card(colors = CardDefaults.cardColors(containerColor = Surface)) {
-            Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Favorite, contentDescription = null, tint = Lime)
-                Spacer(Modifier.width(16.dp))
-                Column {
-                    Text("Favorites", fontWeight = FontWeight.Bold)
-                    Text("Saved favorites arrive in the next milestone", color = Color.LightGray)
+        item {
+            FilterChip(
+                selected = favoritesOnly,
+                onClick = { favoritesOnly = !favoritesOnly },
+                label = { Text("Favorites (${tracks.count(Track::isFavorite)})") },
+                leadingIcon = { Icon(Icons.Default.Favorite, contentDescription = null) },
+            )
+        }
+        if (visibleTracks.isEmpty()) {
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = Surface)) {
+                    Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                        Text(if (favoritesOnly) "No favorites yet" else "Your library is empty", fontWeight = FontWeight.Bold)
+                        Text(
+                            if (favoritesOnly) "Tap the heart beside a track to save it here."
+                            else "Add an audio file to keep it in VibeArc.",
+                            color = Color.LightGray,
+                        )
+                    }
                 }
             }
+        }
+        items(visibleTracks, key = Track::uri) { track ->
+            TrackRow(
+                track = track,
+                onPlay = { onPlay(track) },
+                onFavorite = { onToggleFavorite(track) },
+                isFavorite = track.isFavorite,
+            )
         }
     }
 }
@@ -343,6 +387,7 @@ private fun PlayerScreen(
     player: Player,
     track: Track,
     isPlaying: Boolean,
+    onFavorite: (() -> Unit)?,
 ) {
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(1L) }
@@ -369,6 +414,15 @@ private fun PlayerScreen(
         Spacer(Modifier.height(28.dp))
         Text(track.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
         Text(track.artist, color = Cyan)
+        if (onFavorite != null) {
+            IconButton(onClick = onFavorite) {
+                Icon(
+                    Icons.Default.Favorite,
+                    contentDescription = if (track.isFavorite) "Remove from favorites" else "Add to favorites",
+                    tint = if (track.isFavorite) Lime else Color.LightGray,
+                )
+            }
+        }
         Spacer(Modifier.height(20.dp))
         Slider(
             value = position.coerceAtMost(duration).toFloat(),
@@ -426,7 +480,12 @@ private fun MiniPlayer(track: Track, isPlaying: Boolean, onOpen: () -> Unit, onT
 }
 
 @Composable
-private fun TrackRow(track: Track, onPlay: () -> Unit) {
+private fun TrackRow(
+    track: Track,
+    onPlay: () -> Unit,
+    onFavorite: (() -> Unit)? = null,
+    isFavorite: Boolean = false,
+) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onPlay).padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -441,7 +500,17 @@ private fun TrackRow(track: Track, onPlay: () -> Unit) {
             Text(track.title, fontWeight = FontWeight.Bold)
             Text("${track.artist} • ${track.album}", color = Color.LightGray)
         }
-        Icon(Icons.Default.PlayArrow, contentDescription = "Play ${track.title}", tint = Lime)
+        if (onFavorite == null) {
+            Icon(Icons.Default.PlayArrow, contentDescription = "Play ${track.title}", tint = Lime)
+        } else {
+            IconButton(onClick = onFavorite) {
+                Icon(
+                    Icons.Default.Favorite,
+                    contentDescription = if (isFavorite) "Remove ${track.title} from favorites" else "Add ${track.title} to favorites",
+                    tint = if (isFavorite) Lime else Color.LightGray,
+                )
+            }
+        }
     }
 }
 
@@ -453,6 +522,7 @@ private fun SectionTitle(text: String) {
 private fun Player.load(track: Track, uri: Uri, playNow: Boolean = true) {
     setMediaItem(
         MediaItem.Builder()
+            .setMediaId(track.uri)
             .setUri(uri)
             .setMediaMetadata(
                 MediaMetadata.Builder()
@@ -474,6 +544,7 @@ private val MediaItem.track: Track
         title = mediaMetadata.title?.toString() ?: "Unknown track",
         artist = mediaMetadata.artist?.toString() ?: "On this device",
         album = mediaMetadata.albumTitle?.toString() ?: "Imported",
+        uri = mediaId,
     )
 
 private fun Context.trackFrom(uri: Uri): Track {
@@ -486,5 +557,10 @@ private fun Context.trackFrom(uri: Uri): Track {
     )?.use { cursor ->
         if (cursor.moveToFirst()) cursor.getString(0) else null
     }.orEmpty()
-    return Track(fileName.substringBeforeLast('.').ifBlank { "Local audio" }, "On this device", "Imported")
+    return Track(
+        fileName.substringBeforeLast('.').ifBlank { "Local audio" },
+        "On this device",
+        "Imported",
+        uri.toString(),
+    )
 }

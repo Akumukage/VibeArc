@@ -18,5 +18,6 @@ The demo works without network access or accounts. It includes a synthetic sampl
 - Home, Search, Library, and Now Playing destinations
 - Bundled demo track plus playback of a user-selected audio file
 - Background playback, media notification, lock-screen controls, seek, and mini-player
+- Persistent multi-track library, search, and favorites
 
-Next milestone: persist a multi-track library and favorites.
+Next milestone: playlists and richer audio metadata.
