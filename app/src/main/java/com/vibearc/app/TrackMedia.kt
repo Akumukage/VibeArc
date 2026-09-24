@@ -83,6 +83,7 @@ internal fun Context.trackFrom(uri: Uri): Track {
                 durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                     ?.toLongOrNull() ?: 0L,
                 artworkUri = artworkUri,
+                folder = displayFolderFromPath(uri.path),
             )
         } finally {
             retriever.release()

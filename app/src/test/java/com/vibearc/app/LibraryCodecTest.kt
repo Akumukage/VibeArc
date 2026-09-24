@@ -15,6 +15,7 @@ class LibraryCodecTest {
                 true,
                 durationMs = 183_000,
                 artworkUri = "content://artwork/1",
+                folder = "Night drives",
             ),
             Track("Night Drive", "VibeArc", "Singles", "content://music/2", false),
         )
@@ -28,6 +29,29 @@ class LibraryCodecTest {
         val oldRow = "T2xkIHNvbmc|QXJ0aXN0|QWxidW0|Y29udGVudDovL211c2ljL29sZA|1"
 
         assertEquals(listOf(oldTrack), LibraryCodec.decode(oldRow))
+    }
+
+    @Test
+    fun `decode preserves seven field library rows`() {
+        val oldTrack = Track(
+            "Old song",
+            "Artist",
+            "Album",
+            "content://music/old",
+            true,
+            durationMs = 183_000,
+            artworkUri = "content://artwork/old",
+        )
+        val oldRow = "T2xkIHNvbmc|QXJ0aXN0|QWxidW0|Y29udGVudDovL211c2ljL29sZA|1|183000|Y29udGVudDovL2FydHdvcmsvb2xk"
+
+        assertEquals(listOf(oldTrack), LibraryCodec.decode(oldRow))
+    }
+
+    @Test
+    fun `folder name uses the parent segment of a document path`() {
+        assertEquals("Albums", displayFolderFromPath("/document/primary:Music/Albums/song.mp3"))
+        assertEquals("Imported", displayFolderFromPath("/document/42"))
+        assertEquals("Imported", displayFolderFromPath(null))
     }
 
     @Test

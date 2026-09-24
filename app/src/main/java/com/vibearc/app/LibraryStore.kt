@@ -12,6 +12,7 @@ internal data class Track(
     val isFavorite: Boolean = false,
     val durationMs: Long = 0,
     val artworkUri: String = "",
+    val folder: String = "Imported",
 )
 
 internal data class Playlist(
@@ -28,12 +29,13 @@ internal object LibraryCodec {
         listOf(track.title, track.artist, track.album, track.uri)
             .joinToString("|") { encoder.encodeToString(it.toByteArray(UTF_8)) } +
             (if (track.isFavorite) "|1" else "|0") +
-            "|${track.durationMs}|${encoder.encodeToString(track.artworkUri.toByteArray(UTF_8))}"
+            "|${track.durationMs}|${encoder.encodeToString(track.artworkUri.toByteArray(UTF_8))}" +
+            "|${encoder.encodeToString(track.folder.toByteArray(UTF_8))}"
     }
 
     fun decode(value: String): List<Track> = value.lineSequence().mapNotNull { row ->
         val fields = row.split('|')
-        if (fields.size != 5 && fields.size != 7) return@mapNotNull null
+        if (fields.size !in setOf(5, 7, 8)) return@mapNotNull null
         runCatching {
             Track(
                 title = String(decoder.decode(fields[0]), UTF_8),
@@ -43,9 +45,17 @@ internal object LibraryCodec {
                 isFavorite = fields[4] == "1",
                 durationMs = fields.getOrNull(5)?.toLong() ?: 0,
                 artworkUri = fields.getOrNull(6)?.let { String(decoder.decode(it), UTF_8) }.orEmpty(),
+                folder = fields.getOrNull(7)?.let { String(decoder.decode(it), UTF_8) } ?: "Imported",
             )
         }.getOrNull()
     }.toList()
+}
+
+internal fun displayFolderFromPath(path: String?): String {
+    val relativePath = path?.substringAfter(':', missingDelimiterValue = "").orEmpty().trim('/')
+    return relativePath.substringBeforeLast('/', missingDelimiterValue = "")
+        .substringAfterLast('/')
+        .ifBlank { "Imported" }
 }
 
 internal object PlaylistCodec {
