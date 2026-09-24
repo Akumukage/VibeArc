@@ -471,6 +471,7 @@ private fun LibraryScreen(
 ) {
     var mode by remember { mutableStateOf(LibraryMode.Tracks) }
     var selectedPlaylistId by remember { mutableStateOf<String?>(null) }
+    var selectedGroup by remember { mutableStateOf<String?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var playlistToRename by remember { mutableStateOf<Playlist?>(null) }
     var playlistToDelete by remember { mutableStateOf<Playlist?>(null) }
@@ -478,6 +479,12 @@ private fun LibraryScreen(
     val visibleTracks = if (mode == LibraryMode.Favorites) tracks.filter(Track::isFavorite) else tracks
     val selectedPlaylist = playlists.firstOrNull { it.id == selectedPlaylistId }
     val playlistTracks = selectedPlaylist?.trackUris.orEmpty().mapNotNull { uri -> tracks.firstOrNull { it.uri == uri } }
+    val groupedTracks = when (mode) {
+        LibraryMode.Artists -> tracks.groupBy { it.artist.ifBlank { "Unknown artist" } }
+        LibraryMode.Albums -> tracks.groupBy { it.album.ifBlank { "Unknown album" } }
+        LibraryMode.Folders -> tracks.groupBy { it.folder.ifBlank { "Imported" } }
+        else -> emptyMap()
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(padding),
@@ -500,12 +507,16 @@ private fun LibraryScreen(
                         selected = mode == option,
                         onClick = {
                             mode = option
+                            selectedGroup = null
                             if (option != LibraryMode.Playlists) selectedPlaylistId = null
                         },
                         label = {
                             Text(
                                 when (option) {
                                     LibraryMode.Tracks -> "Tracks"
+                                    LibraryMode.Artists -> "Artists"
+                                    LibraryMode.Albums -> "Albums"
+                                    LibraryMode.Folders -> "Folders"
                                     LibraryMode.Favorites -> "Favorites (${tracks.count(Track::isFavorite)})"
                                     LibraryMode.Playlists -> "Playlists (${playlists.size})"
                                 },
@@ -576,6 +587,49 @@ private fun LibraryScreen(
                             trailingDescription = "Remove ${track.title} from ${selectedPlaylist.name}",
                             onTrailingAction = { onRemoveFromPlaylist(selectedPlaylist.id, track.uri) },
                         )
+                    }
+                }
+            }
+        } else if (mode == LibraryMode.Artists || mode == LibraryMode.Albums || mode == LibraryMode.Folders) {
+            val selectedTracks = selectedGroup?.let(groupedTracks::get).orEmpty()
+            if (selectedGroup == null) {
+                if (groupedTracks.isEmpty()) {
+                    item { EmptyLibraryCard("Nothing to browse yet", "Add audio files to browse your music here.") }
+                }
+                items(groupedTracks.entries.sortedBy { it.key.lowercase() }, key = { it.key }) { group ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = PanelRaised),
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth().clickable { selectedGroup = group.key },
+                    ) {
+                        Column(Modifier.padding(18.dp)) {
+                            Text(group.key, fontWeight = FontWeight.Bold)
+                            Text("${group.value.size} ${if (group.value.size == 1) "track" else "tracks"}", color = MutedText)
+                        }
+                    }
+                }
+            } else {
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { selectedGroup = null }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                        Text(selectedGroup.orEmpty(), style = MaterialTheme.typography.titleLarge)
+                    }
+                }
+                if (selectedTracks.isNotEmpty()) {
+                    item {
+                        Button(
+                            onClick = { onPlay(selectedTracks.first(), selectedTracks) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Play all")
+                        }
+                    }
+                    items(selectedTracks, key = Track::uri) { track ->
+                        TrackRow(track = track, onPlay = { onPlay(track, selectedTracks) })
                     }
                 }
             }
@@ -663,7 +717,7 @@ private fun LibraryScreen(
     }
 }
 
-private enum class LibraryMode { Tracks, Favorites, Playlists }
+private enum class LibraryMode { Tracks, Artists, Albums, Folders, Favorites, Playlists }
 
 @Composable
 private fun EmptyLibraryCard(title: String, message: String) {
