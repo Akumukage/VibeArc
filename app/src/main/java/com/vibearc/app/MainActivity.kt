@@ -1,23 +1,20 @@
 package com.vibearc.app
 
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
-import android.graphics.BitmapFactory
-import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Bundle
-import android.provider.OpenableColumns
 import android.text.format.DateUtils
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -48,18 +45,23 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -75,12 +77,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -93,13 +93,15 @@ import androidx.media3.session.SessionToken
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import java.io.File
 import java.util.UUID
 
-private val Midnight = Color(0xFF080B14)
-private val Surface = Color(0xFF111729)
-private val Lime = Color(0xFFC8FF00)
-private val Cyan = Color(0xFF1DE9D3)
+private val Ink = Color(0xFF0E0D0C)
+private val Panel = Color(0xFF1C1917)
+private val PanelRaised = Color(0xFF292420)
+private val Sand = Color(0xFFF2D2B2)
+private val Peach = Color(0xFFFFB77D)
+private val Paper = Color(0xFFFFF8F1)
+private val MutedText = Color(0xFFCFC4B9)
 
 private val demoTrack = Track("First Light", "VibeArc Demo", "Signals")
 
@@ -114,11 +116,31 @@ class MainActivity : ComponentActivity() {
 private fun VibeArcTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = darkColorScheme(
-            primary = Lime,
-            secondary = Cyan,
-            background = Midnight,
-            surface = Surface,
-            onPrimary = Color(0xFF142000),
+            primary = Sand,
+            onPrimary = Color(0xFF2D1C0E),
+            primaryContainer = Color(0xFF4B3525),
+            onPrimaryContainer = Color(0xFFFFE8D1),
+            secondary = Peach,
+            onSecondary = Color(0xFF301B0B),
+            background = Ink,
+            onBackground = Paper,
+            surface = Panel,
+            onSurface = Paper,
+            surfaceVariant = PanelRaised,
+            onSurfaceVariant = MutedText,
+            outline = Color(0xFF62584F),
+        ),
+        shapes = Shapes(
+            extraSmall = RoundedCornerShape(10.dp),
+            small = RoundedCornerShape(16.dp),
+            medium = RoundedCornerShape(24.dp),
+            large = RoundedCornerShape(32.dp),
+            extraLarge = RoundedCornerShape(40.dp),
+        ),
+        typography = Typography(
+            displaySmall = TextStyle(fontSize = 42.sp, lineHeight = 46.sp, fontWeight = FontWeight.Black),
+            headlineMedium = TextStyle(fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold),
+            titleLarge = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold),
         ),
         content = content,
     )
@@ -149,7 +171,7 @@ private fun VibeArcApp() {
 
     val activePlayer = player
     if (activePlayer == null) {
-        Box(Modifier.fillMaxSize().background(Midnight), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().background(Ink), contentAlignment = Alignment.Center) {
             Text("Starting VibeArc…", color = Color.White)
         }
         return
@@ -243,11 +265,11 @@ private fun VibeArcApp() {
             TopAppBar(
                 title = {
                     Column {
-                        Text("VibeArc", fontWeight = FontWeight.Black)
-                        Text("Music that follows your rhythm", fontSize = 12.sp, color = Cyan)
+                        Text("VibeArc", style = MaterialTheme.typography.titleLarge)
+                        Text(currentTab.label, fontSize = 12.sp, color = MutedText)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Midnight),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Ink),
             )
         },
         bottomBar = {
@@ -260,19 +282,26 @@ private fun VibeArcApp() {
                         onToggle = activePlayer::toggle,
                     )
                 }
-                NavigationBar(containerColor = Surface) {
+                NavigationBar(containerColor = Panel) {
                     Tab.entries.forEach { tab ->
                         NavigationBarItem(
                             selected = currentTab == tab,
                             onClick = { currentTab = tab },
                             icon = { Icon(tab.icon, contentDescription = null) },
                             label = { Text(tab.label) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color(0xFF2D1C0E),
+                                selectedTextColor = Paper,
+                                indicatorColor = Sand,
+                                unselectedIconColor = MutedText,
+                                unselectedTextColor = MutedText,
+                            ),
                         )
                     }
                 }
             }
         },
-        containerColor = Midnight,
+        containerColor = Ink,
     ) { padding ->
         when (currentTab) {
             Tab.Home -> HomeScreen(
@@ -344,36 +373,49 @@ private fun HomeScreen(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(padding),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         item {
-            Text("Good evening", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("Play the demo or choose your own audio from Library.", color = Color.LightGray)
+            Text("Your sound,\nyour space.", style = MaterialTheme.typography.displaySmall)
+            Spacer(Modifier.height(8.dp))
+            Text("Play something recent or open your local library.", color = MutedText)
         }
         item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                shape = RoundedCornerShape(28.dp),
-                modifier = Modifier.fillMaxWidth().background(
-                    Brush.linearGradient(listOf(Color(0xFF26386F), Color(0xFF123A3A))),
-                    RoundedCornerShape(28.dp),
-                ),
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(0.86f)
+                    .clip(MaterialTheme.shapes.large)
+                    .clickable(onClick = onPlayDemo),
             ) {
-                Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("DEMO SIGNAL", color = Lime, fontWeight = FontWeight.Bold)
-                    Text("First Light", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black)
-                    Text("A bundled, original tone sequence for testing the player.")
-                    Button(onClick = onPlayDemo) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Play demo")
+                TrackArtwork(
+                    track = demoTrack,
+                    contentDescription = "Artwork for First Light",
+                    modifier = Modifier.fillMaxSize(),
+                )
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Color(0x22000000), Color(0xE6000000)),
+                            ),
+                        ),
+                )
+                Column(
+                    modifier = Modifier.align(Alignment.BottomStart).padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text("FEATURED", color = Sand, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("First Light", style = MaterialTheme.typography.headlineMedium)
+                    Text("VibeArc Demo", color = MutedText)
+                    FilledIconButton(onClick = onPlayDemo, modifier = Modifier.size(56.dp)) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Play First Light")
                     }
                 }
             }
         }
-        item { SectionTitle("Made for this build") }
-        item { TrackRow(demoTrack, onPlayDemo) }
         if (recentTracks.isNotEmpty()) {
             item { SectionTitle("Recently played") }
             items(recentTracks, key = { it.uri.ifBlank { DemoMediaId } }) { track ->
@@ -392,9 +434,9 @@ private fun SearchScreen(padding: PaddingValues, tracks: List<Track>, onPlay: (T
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(padding),
         contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        item { Text("Search", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }
+        item { Text("Find your sound", style = MaterialTheme.typography.headlineMedium) }
         item {
             OutlinedTextField(
                 value = query,
@@ -403,9 +445,10 @@ private fun SearchScreen(padding: PaddingValues, tracks: List<Track>, onPlay: (T
                 label = { Text("Tracks, artists, albums") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 singleLine = true,
+                shape = MaterialTheme.shapes.medium,
             )
         }
-        if (results.isEmpty()) item { Text("No tracks match “$query”.", color = Color.LightGray) }
+        if (results.isEmpty()) item { Text("No tracks match “$query”.", color = MutedText) }
         items(results, key = { it.uri.ifBlank { "demo" } }) { track ->
             TrackRow(track, onPlay = { onPlay(track) })
         }
@@ -441,7 +484,7 @@ private fun LibraryScreen(
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        item { Text("Library", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }
+        item { Text("Your library", style = MaterialTheme.typography.headlineMedium) }
         item {
             Button(onClick = onChooseFile, modifier = Modifier.fillMaxWidth()) {
                 Text("Add audio file")
@@ -487,12 +530,13 @@ private fun LibraryScreen(
                 }
                 items(playlists, key = Playlist::id) { playlist ->
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = Surface),
+                        colors = CardDefaults.cardColors(containerColor = PanelRaised),
+                        shape = MaterialTheme.shapes.medium,
                         modifier = Modifier.fillMaxWidth().clickable { selectedPlaylistId = playlist.id },
                     ) {
                         Column(Modifier.padding(18.dp)) {
                             Text(playlist.name, fontWeight = FontWeight.Bold)
-                            Text("${playlist.trackUris.size} tracks", color = Color.LightGray)
+                            Text("${playlist.trackUris.size} tracks", color = MutedText)
                         }
                     }
                 }
@@ -623,10 +667,13 @@ private enum class LibraryMode { Tracks, Favorites, Playlists }
 
 @Composable
 private fun EmptyLibraryCard(title: String, message: String) {
-    Card(colors = CardDefaults.cardColors(containerColor = Surface)) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = PanelRaised),
+        shape = MaterialTheme.shapes.medium,
+    ) {
         Column(Modifier.fillMaxWidth().padding(20.dp)) {
             Text(title, fontWeight = FontWeight.Bold)
-            Text(message, color = Color.LightGray)
+            Text(message, color = MutedText)
         }
     }
 }
@@ -685,26 +732,34 @@ private fun PlayerScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(padding),
-        contentPadding = PaddingValues(horizontal = 28.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         item {
             TrackArtwork(
                 track = track,
                 contentDescription = "Artwork for ${track.title}",
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(32.dp)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(MaterialTheme.shapes.large),
             )
         }
         item {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                Text(track.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
-                Text("${track.artist} • ${track.album}", color = Cyan)
+            Row(
+                modifier = Modifier.fillMaxWidth().animateContentSize(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(track.title, style = MaterialTheme.typography.headlineMedium)
+                    Text("${track.artist} • ${track.album}", color = MutedText)
+                }
                 if (onFavorite != null) {
                     IconButton(onClick = onFavorite) {
                         Icon(
                             Icons.Default.Favorite,
                             contentDescription = if (track.isFavorite) "Remove from favorites" else "Add to favorites",
-                            tint = if (track.isFavorite) Lime else Color.LightGray,
+                            tint = if (track.isFavorite) Peach else MutedText,
                         )
                     }
                 }
@@ -718,8 +773,8 @@ private fun PlayerScreen(
                 valueRange = 0f..duration.toFloat(),
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(DateUtils.formatElapsedTime(position / 1_000), color = Color.LightGray)
-                Text(DateUtils.formatElapsedTime(duration / 1_000), color = Color.LightGray)
+                Text(DateUtils.formatElapsedTime(position / 1_000), color = MutedText)
+                Text(DateUtils.formatElapsedTime(duration / 1_000), color = MutedText)
             }
         }
         item {
@@ -728,24 +783,31 @@ private fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = player::seekToPreviousMediaItem, enabled = player.hasPreviousMediaItem()) {
-                    Text("⏮", modifier = Modifier.semantics { contentDescription = "Previous track" })
+                IconButton(
+                    onClick = player::seekToPreviousMediaItem,
+                    enabled = player.hasPreviousMediaItem(),
+                    modifier = Modifier.size(56.dp).clearAndSetSemantics { contentDescription = "Previous track" },
+                ) {
+                    Text("‹", fontSize = 42.sp)
+                }
+                FilledIconButton(
+                    onClick = player::toggle,
+                    modifier = Modifier.size(76.dp).clearAndSetSemantics {
+                        contentDescription = if (isPlaying) "Pause" else "Play"
+                    },
+                ) {
+                    if (isPlaying) {
+                        Text("Ⅱ", fontSize = 30.sp)
+                    } else {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(38.dp))
+                    }
                 }
                 IconButton(
-                    onClick = player::toggle,
-                    modifier = Modifier.size(72.dp).background(Lime, RoundedCornerShape(36.dp)),
+                    onClick = player::seekToNextMediaItem,
+                    enabled = player.hasNextMediaItem(),
+                    modifier = Modifier.size(56.dp).clearAndSetSemantics { contentDescription = "Next track" },
                 ) {
-                    Text(
-                        if (isPlaying) "Ⅱ" else "▶",
-                        fontSize = 32.sp,
-                        color = Midnight,
-                        modifier = Modifier.semantics {
-                            contentDescription = if (isPlaying) "Pause" else "Play"
-                        },
-                    )
-                }
-                IconButton(onClick = player::seekToNextMediaItem, enabled = player.hasNextMediaItem()) {
-                    Text("⏭", modifier = Modifier.semantics { contentDescription = "Next track" })
+                    Text("›", fontSize = 42.sp)
                 }
             }
         }
@@ -764,7 +826,7 @@ private fun PlayerScreen(
             }
         }
         item {
-            Button(onClick = onCycleSleepTimer, modifier = Modifier.fillMaxWidth()) {
+            TextButton(onClick = onCycleSleepTimer, modifier = Modifier.fillMaxWidth()) {
                 Text(
                     if (sleepRemainingMillis == 0L) "Sleep timer off"
                     else "Sleep in ${((sleepRemainingMillis + 59_999) / 60_000)} min",
@@ -773,7 +835,7 @@ private fun PlayerScreen(
         }
         item { SectionTitle("Queue") }
         if (queue.isEmpty()) {
-            item { Text("The queue is empty.", color = Color.LightGray) }
+            item { Text("The queue is empty.", color = MutedText) }
         } else {
             items(queue.indices.toList(), key = { index -> "$index-${queue[index].uri}" }) { index ->
                 val queuedTrack = queue[index]
@@ -790,24 +852,33 @@ private fun PlayerScreen(
 
 @Composable
 private fun MiniPlayer(track: Track, isPlaying: Boolean, onOpen: () -> Unit, onToggle: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().background(Color(0xFF1A2238)).clickable(onClick = onOpen).padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+        color = PanelRaised,
+        shape = MaterialTheme.shapes.medium,
     ) {
-        TrackArtwork(track, null, Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)))
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(track.title, fontWeight = FontWeight.Bold)
-            Text(track.artist, color = Color.LightGray, fontSize = 12.sp)
-        }
-        IconButton(onClick = onToggle) {
-            Text(
-                if (isPlaying) "Ⅱ" else "▶",
-                fontSize = 24.sp,
-                modifier = Modifier.semantics {
+        Row(
+            Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TrackArtwork(track, null, Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(track.title, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(track.artist, color = MutedText, fontSize = 12.sp, maxLines = 1)
+            }
+            FilledIconButton(
+                onClick = onToggle,
+                modifier = Modifier.size(48.dp).clearAndSetSemantics {
                     contentDescription = if (isPlaying) "Pause" else "Play"
                 },
-            )
+            ) {
+                if (isPlaying) {
+                    Text("Ⅱ", fontSize = 20.sp)
+                } else {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null)
+                }
+            }
         }
     }
 }
@@ -835,53 +906,29 @@ private fun TrackRow(
                     append("${track.artist} • ${track.album}")
                     if (track.durationMs > 0) append(" • ${DateUtils.formatElapsedTime(track.durationMs / 1_000)}")
                 },
-                color = Color.LightGray,
+                color = MutedText,
             )
         }
         if (onFavorite == null) {
-            Icon(Icons.Default.PlayArrow, contentDescription = "Play ${track.title}", tint = Lime)
+            Icon(Icons.Default.PlayArrow, contentDescription = "Play ${track.title}", tint = Sand)
         } else {
             IconButton(onClick = onFavorite) {
                 Icon(
                     Icons.Default.Favorite,
                     contentDescription = if (isFavorite) "Remove ${track.title} from favorites" else "Add ${track.title} to favorites",
-                    tint = if (isFavorite) Lime else Color.LightGray,
+                    tint = if (isFavorite) Peach else MutedText,
                 )
             }
         }
         if (trailingIcon != null) {
             if (onTrailingAction == null) {
-                Icon(trailingIcon, contentDescription = trailingDescription, tint = Lime)
+                Icon(trailingIcon, contentDescription = trailingDescription, tint = Sand)
             } else {
                 IconButton(onClick = onTrailingAction) {
                     Icon(trailingIcon, contentDescription = trailingDescription)
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun TrackArtwork(track: Track, contentDescription: String?, modifier: Modifier = Modifier) {
-    val artwork = remember(track.artworkUri) {
-        track.artworkUri.takeIf(String::isNotBlank)?.let { value ->
-            runCatching { BitmapFactory.decodeFile(Uri.parse(value).path)?.asImageBitmap() }.getOrNull()
-        }
-    }
-    if (artwork == null) {
-        Image(
-            painter = painterResource(R.drawable.vibearc_icon),
-            contentDescription = contentDescription,
-            modifier = modifier,
-            contentScale = ContentScale.Crop,
-        )
-    } else {
-        Image(
-            bitmap = artwork,
-            contentDescription = contentDescription,
-            modifier = modifier,
-            contentScale = ContentScale.Crop,
-        )
     }
 }
 
@@ -940,51 +987,4 @@ private fun Int.repeatLabel(): String = when (this) {
     Player.REPEAT_MODE_ALL -> "Repeat all"
     Player.REPEAT_MODE_ONE -> "Repeat one"
     else -> "Repeat off"
-}
-
-private fun Context.trackFrom(uri: Uri): Track {
-    val fileName = contentResolver.query(
-        uri,
-        arrayOf(OpenableColumns.DISPLAY_NAME),
-        null,
-        null,
-        null,
-    )?.use { cursor ->
-        if (cursor.moveToFirst()) cursor.getString(0) else null
-    }.orEmpty()
-    val fallbackTitle = fileName.substringBeforeLast('.').ifBlank { "Local audio" }
-    return runCatching {
-        val retriever = MediaMetadataRetriever()
-        try {
-            retriever.setDataSource(this, uri)
-            val artworkUri = retriever.embeddedPicture
-                ?.takeIf(ByteArray::isNotEmpty)
-                ?.let { cacheArtwork(uri, it) }
-                .orEmpty()
-            Track(
-                title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
-                    ?.takeIf(String::isNotBlank) ?: fallbackTitle,
-                artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
-                    ?.takeIf(String::isNotBlank) ?: "On this device",
-                album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
-                    ?.takeIf(String::isNotBlank) ?: "Imported",
-                uri = uri.toString(),
-                durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                    ?.toLongOrNull() ?: 0L,
-                artworkUri = artworkUri,
-            )
-        } finally {
-            retriever.release()
-        }
-    }.getOrElse {
-        Track(fallbackTitle, "On this device", "Imported", uri.toString())
-    }
-}
-
-private fun Context.cacheArtwork(uri: Uri, bytes: ByteArray): String {
-    val directory = File(filesDir, "artwork").apply { mkdirs() }
-    return File(directory, "${uri.toString().hashCode()}.image")
-        .apply { writeBytes(bytes) }
-        .toURI()
-        .toString()
 }

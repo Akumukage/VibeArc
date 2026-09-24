@@ -14,7 +14,7 @@ The demo works without network access or accounts. It includes a synthetic sampl
 
 ## Current scope
 
-- Branded launcher icon and dark Material 3 interface
+- Warm, artwork-led Material 3 interface and matching launcher icon
 - Home, Search, Library, and Now Playing destinations
 - Bundled demo track plus playback of a user-selected audio file
 - Background playback, media notification, lock-screen controls, seek, and mini-player
@@ -24,4 +24,4 @@ The demo works without network access or accounts. It includes a synthetic sampl
 - Playback queue with previous/next, shuffle, repeat, and recently played history
 - Background-safe sleep timer controls
 
-Next milestone: browse by artist, album, and folder with richer sorting.
+Next milestone: browse by artist, album, and folder with richer sorting, plus launcher-icon choices from a bundled icon set.
