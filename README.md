@@ -26,4 +26,8 @@ The demo works without network access or accounts. It includes a synthetic sampl
 - Background-safe sleep timer controls
 - Midnight, Peach, and Mono launcher-icon choices
 
-Next milestone: Audius-powered online music search and streaming in v0.7.
+Next milestone: an experimental, keyless YouTube provider in v0.7, using an
+InnerTube client first and NewPipeExtractor as the fallback. This provider is
+planned for public, unauthenticated content only and is not considered a
+Google Play-safe production integration. See [`tasks/plan.md`](tasks/plan.md)
+for the implementation and distribution limits.
