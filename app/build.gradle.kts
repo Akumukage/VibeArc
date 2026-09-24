@@ -12,8 +12,8 @@ android {
         applicationId = "com.vibearc.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.5.0-demo"
+        versionCode = 4
+        versionName = "0.4.0-demo"
     }
 
     buildTypes {
