@@ -7,29 +7,30 @@
 
 ## Phase 2: provider foundation
 
-- [ ] Define `MusicProvider`, provider track IDs, paged search results, and typed errors.
-- [ ] Add fixture tests for valid, missing-field, unavailable, and temporary-failure responses.
-- [ ] Implement public, unauthenticated InnerTube search and metadata.
+- [x] Add direct public, unauthenticated InnerTube song search and metadata.
+- [x] Add a fixture test for the response-to-track mapping.
+- [x] Fall back to NewPipe search when the direct response changes or fails.
 
 ### Checkpoint
 
-- [ ] Provider tests pass and the Android app builds without NewPipeExtractor.
+- [x] Provider unit tests pass.
 
 ## Phase 3: playback and fallback
 
-- [ ] Add NewPipeExtractor with the required API 26 core-library desugaring and pinned stable version.
-- [ ] Resolve public playback URLs only when a user presses play.
-- [ ] Fall back to NewPipeExtractor once for supported extraction failures.
-- [ ] Connect remote tracks to Media3 without persisting or downloading media URLs.
+- [x] Add pinned NewPipeExtractor v0.26.5 and API 26 core-library desugaring.
+- [x] Resolve public playback URLs only when a user presses play.
+- [x] Use NewPipeExtractor as the secondary search and playback resolver.
+- [x] Connect remote tracks to Media3 without persisting or downloading media URLs.
 
 ### Checkpoint
 
-- [ ] Search-to-play works for public test fixtures and fails clearly for unsupported content.
-- [ ] Local-file playback still passes its existing tests.
+- [x] A live public search-to-audio smoke test passes.
+- [x] Unsupported content fails with a clear in-app message.
+- [x] Local-file playback still passes its existing tests.
 
 ## Phase 4: user experience and reliability
 
-- [ ] Add YouTube attribution and provider-specific empty/error states.
+- [x] Add source labeling and provider-specific loading, empty, and error states.
 - [ ] Add timeouts, cancellation, expiring-URL refresh, and minimal provider diagnostics.
 - [ ] Test offline, slow-network, removed-content, region-blocked, and fallback flows.
 

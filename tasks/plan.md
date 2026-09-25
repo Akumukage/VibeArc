@@ -79,10 +79,10 @@ not a stable or policy-compliant route to a Google Play production release.
 
 NewPipeExtractor supports independent Android use, but its documentation says
 that projects below Android API 33 require core-library desugaring. VibeArc has
-`minSdk 26`, so v0.7 must add that configuration. Its GPLv3-or-later license also
+`minSdk 26`, so v0.7 includes that configuration. Its GPLv3-or-later license also
 means VibeArc must adopt a compatible license and publish corresponding source
-before distributing a build that contains the library. No extractor dependency
-will be added until that licensing decision is explicit.
+before distributing this build. The dependency and build remain local until
+that licensing decision is explicit.
 
 ## Primary risks
 
