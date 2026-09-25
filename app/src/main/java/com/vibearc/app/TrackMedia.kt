@@ -11,7 +11,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -20,16 +24,24 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 
 @Composable
 internal fun TrackArtwork(track: Track, contentDescription: String?, modifier: Modifier = Modifier) {
-    val artwork = remember(track.artworkUri) {
-        track.artworkUri.takeIf(String::isNotBlank)?.let { value ->
-            runCatching { BitmapFactory.decodeFile(Uri.parse(value).path)?.asImageBitmap() }.getOrNull()
+    var artwork by remember(track.artworkUri) {
+        mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
+    }
+    LaunchedEffect(track.artworkUri) {
+        artwork = track.artworkUri.takeIf(String::isNotBlank)?.let { artworkUri ->
+            withContext(Dispatchers.IO) { loadArtwork(artworkUri)?.asImageBitmap() }
         }
     }
-    if (artwork == null) {
+    val loadedArtwork = artwork
+    if (loadedArtwork == null) {
         Box(
             modifier = modifier.background(
                 Brush.linearGradient(listOf(Color(0xFF4A3426), Color(0xFF181513))),
@@ -45,13 +57,30 @@ internal fun TrackArtwork(track: Track, contentDescription: String?, modifier: M
         }
     } else {
         Image(
-            bitmap = artwork,
+            bitmap = loadedArtwork,
             contentDescription = contentDescription,
             modifier = modifier,
             contentScale = ContentScale.Crop,
         )
     }
 }
+
+private fun loadArtwork(value: String) = runCatching {
+    val uri = Uri.parse(value)
+    if (uri.scheme == "http" || uri.scheme == "https") {
+        val connection = URL(value).openConnection() as HttpURLConnection
+        try {
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 10_000
+            connection.setRequestProperty("User-Agent", "VibeArc/0.7")
+            connection.inputStream.use(BitmapFactory::decodeStream)
+        } finally {
+            connection.disconnect()
+        }
+    } else {
+        BitmapFactory.decodeFile(uri.path)
+    }
+}.getOrNull()
 
 internal fun Context.trackFrom(uri: Uri): Track {
     val fileName = contentResolver.query(

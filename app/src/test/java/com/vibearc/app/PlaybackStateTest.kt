@@ -5,6 +5,14 @@ import org.junit.Test
 
 class PlaybackStateTest {
     @Test
+    fun `selected online track is added to the queue instead of falling back to demo`() {
+        val demo = Track("First Light", "VibeArc Demo", "Signals")
+        val online = Track("Ocean Eyes", "Billie Eilish", "YouTube Music", "https://audio.example/ocean")
+
+        assertEquals(online, playbackQueue(listOf(demo), online).first())
+    }
+
+    @Test
     fun `recent uri codec round trips reserved characters`() {
         val uris = listOf("content://music/one|two", "content://music/line\nbreak")
 

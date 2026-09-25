@@ -99,10 +99,10 @@ import java.util.UUID
 private val Ink = Color(0xFF0E0D0C)
 private val Panel = Color(0xFF1C1917)
 private val PanelRaised = Color(0xFF292420)
-private val Sand = Color(0xFFF2D2B2)
+internal val Sand = Color(0xFFF2D2B2)
 private val Peach = Color(0xFFFFB77D)
 private val Paper = Color(0xFFFFF8F1)
-private val MutedText = Color(0xFFCFC4B9)
+internal val MutedText = Color(0xFFCFC4B9)
 
 private val demoTrack = Track("First Light", "VibeArc Demo", "Signals")
 
@@ -424,36 +424,6 @@ private fun HomeScreen(
             items(recentTracks, key = { it.uri.ifBlank { DemoMediaId } }) { track ->
                 TrackRow(track, onPlay = { onPlay(track) })
             }
-        }
-    }
-}
-
-@Composable
-private fun SearchScreen(padding: PaddingValues, tracks: List<Track>, onPlay: (Track) -> Unit) {
-    var query by remember { mutableStateOf("") }
-    val results = tracks.filter { track ->
-        query.isBlank() || listOf(track.title, track.artist, track.album).any { it.contains(query, true) }
-    }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(padding),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        item { Text("Find your sound", style = MaterialTheme.typography.headlineMedium) }
-        item {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Tracks, artists, albums") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                singleLine = true,
-                shape = MaterialTheme.shapes.medium,
-            )
-        }
-        if (results.isEmpty()) item { Text("No tracks match “$query”.", color = MutedText) }
-        items(results, key = { it.uri.ifBlank { "demo" } }) { track ->
-            TrackRow(track, onPlay = { onPlay(track) })
         }
     }
 }
@@ -943,7 +913,7 @@ private fun MiniPlayer(track: Track, isPlaying: Boolean, onOpen: () -> Unit, onT
 }
 
 @Composable
-private fun TrackRow(
+internal fun TrackRow(
     track: Track,
     onPlay: () -> Unit,
     onFavorite: (() -> Unit)? = null,
@@ -992,13 +962,13 @@ private fun TrackRow(
 }
 
 @Composable
-private fun SectionTitle(text: String) {
+internal fun SectionTitle(text: String) {
     Text(text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
 }
 
 private fun Player.loadQueue(tracks: List<Track>, startTrack: Track, demoUri: Uri, playNow: Boolean = true) {
-    val queue = tracks.ifEmpty { listOf(startTrack) }
-    val startIndex = queue.indexOfFirst { it.uri == startTrack.uri }.coerceAtLeast(0)
+    val queue = playbackQueue(tracks, startTrack)
+    val startIndex = queue.indexOfFirst { it.uri == startTrack.uri }
     setMediaItems(queue.map { it.toMediaItem(demoUri) }, startIndex, 0L)
     prepare()
     if (playNow) play()

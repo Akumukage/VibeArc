@@ -1,5 +1,6 @@
 package com.vibearc.app
 
+import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,6 +32,7 @@ import androidx.compose.ui.unit.sp
 internal fun SettingsScreen(padding: PaddingValues) {
     val context = LocalContext.current
     var selectedIcon by remember { mutableStateOf(context.selectedLauncherIcon()) }
+    var highestQuality by remember { mutableStateOf(context.prefersHighestAudioQuality()) }
     var resultMessage by remember { mutableStateOf<String?>(null) }
     val colors = MaterialTheme.colorScheme
 
@@ -39,6 +42,35 @@ internal fun SettingsScreen(padding: PaddingValues) {
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item { Text("Make VibeArc yours", style = MaterialTheme.typography.headlineMedium) }
+        item { Text("Playback", style = MaterialTheme.typography.titleLarge) }
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant),
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth().clickable {
+                    highestQuality = !highestQuality
+                    context.saveHighestAudioQuality(highestQuality)
+                },
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Highest available audio quality", fontWeight = FontWeight.Bold)
+                        Text("Uses more data when higher-bitrate audio is available.", color = colors.onSurfaceVariant)
+                    }
+                    Switch(
+                        checked = highestQuality,
+                        onCheckedChange = { enabled ->
+                            highestQuality = enabled
+                            context.saveHighestAudioQuality(enabled)
+                        },
+                    )
+                }
+            }
+        }
+        item { Text("App icon", style = MaterialTheme.typography.titleLarge) }
         item { Text("Choose the icon shown on your home screen.", color = colors.onSurfaceVariant) }
         items(LauncherIconChoice.entries, key = LauncherIconChoice::name) { choice ->
             Card(
@@ -76,4 +108,18 @@ internal fun SettingsScreen(padding: PaddingValues) {
             )
         }
     }
+}
+
+private const val SettingsPreferencesName = "vibearc_settings"
+private const val HighestAudioQualityKey = "highest_audio_quality"
+
+internal fun Context.prefersHighestAudioQuality(): Boolean =
+    getSharedPreferences(SettingsPreferencesName, Context.MODE_PRIVATE)
+        .getBoolean(HighestAudioQualityKey, true)
+
+private fun Context.saveHighestAudioQuality(enabled: Boolean) {
+    getSharedPreferences(SettingsPreferencesName, Context.MODE_PRIVATE)
+        .edit()
+        .putBoolean(HighestAudioQualityKey, enabled)
+        .apply()
 }
