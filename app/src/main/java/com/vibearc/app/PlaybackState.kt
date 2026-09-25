@@ -7,6 +7,11 @@ internal const val DemoMediaId = "vibearc://demo"
 
 private const val RecentLimit = 20
 
+internal fun playbackQueue(tracks: List<Track>, startTrack: Track): List<Track> {
+    val queue = tracks.ifEmpty { listOf(startTrack) }
+    return if (queue.any { it.uri == startTrack.uri }) queue else listOf(startTrack) + queue
+}
+
 internal fun List<String>.recordRecentUri(uri: String): List<String> {
     require(uri.isNotBlank())
     return (listOf(uri) + filterNot { it == uri }).take(RecentLimit)

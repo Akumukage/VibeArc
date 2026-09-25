@@ -13,13 +13,13 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,10 +27,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -43,27 +46,29 @@ internal fun SearchScreen(padding: PaddingValues, tracks: List<Track>, onPlay: (
     var resolvingUri by remember { mutableStateOf<String?>(null) }
     var hasSearched by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     val localResults = tracks.filter { track ->
         query.isBlank() || listOf(track.title, track.artist, track.album).any { it.contains(query, true) }
     }
-    val searchOnline: () -> Unit = search@{
-        if (searching) return@search
+    LaunchedEffect(query) {
         val requestedQuery = query.trim()
         if (requestedQuery.isBlank()) {
-            onlineError = "Enter a song, artist, or album first."
+            onlineResults = emptyList()
+            onlineError = null
+            hasSearched = false
         } else {
-            scope.launch {
-                searching = true
-                hasSearched = true
-                onlineError = null
-                try {
-                    onlineResults = withContext(Dispatchers.IO) { OnlineMusic.search(requestedQuery) }
-                } catch (_: Exception) {
-                    onlineResults = emptyList()
-                    onlineError = "Online search is unavailable right now. Try again later."
-                } finally {
-                    searching = false
-                }
+            delay(600)
+            searching = true
+            hasSearched = true
+            onlineError = null
+            try {
+                onlineResults = withContext(Dispatchers.IO) { OnlineMusic.search(requestedQuery) }
+            } catch (_: Exception) {
+                onlineResults = emptyList()
+                onlineError = "Online search is unavailable right now. Try again later."
+            } finally {
+                searching = false
             }
         }
     }
@@ -83,17 +88,12 @@ internal fun SearchScreen(padding: PaddingValues, tracks: List<Track>, onPlay: (
                 singleLine = true,
                 shape = MaterialTheme.shapes.medium,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { searchOnline() }),
+                keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
             )
         }
         item {
-            Button(onClick = searchOnline, enabled = !searching, modifier = Modifier.fillMaxWidth()) {
-                Text(if (searching) "Searching…" else "Search YouTube Music")
-            }
-        }
-        item {
             Text(
-                "Experimental public results. Some protected or restricted tracks cannot play.",
+                "YouTube Music searches automatically as you type. Some protected or restricted tracks cannot play.",
                 color = MutedText,
                 fontSize = 13.sp,
             )
@@ -115,7 +115,9 @@ internal fun SearchScreen(padding: PaddingValues, tracks: List<Track>, onPlay: (
                     resolvingUri = track.uri
                     scope.launch {
                         try {
-                            onPlay(withContext(Dispatchers.IO) { OnlineMusic.resolve(track) })
+                            onPlay(withContext(Dispatchers.IO) {
+                                OnlineMusic.resolve(track, context.prefersHighestAudioQuality())
+                            })
                         } catch (_: Exception) {
                             onlineError = "${track.title} is not playable from this connection."
                         } finally {

@@ -967,8 +967,8 @@ internal fun SectionTitle(text: String) {
 }
 
 private fun Player.loadQueue(tracks: List<Track>, startTrack: Track, demoUri: Uri, playNow: Boolean = true) {
-    val queue = tracks.ifEmpty { listOf(startTrack) }
-    val startIndex = queue.indexOfFirst { it.uri == startTrack.uri }.coerceAtLeast(0)
+    val queue = playbackQueue(tracks, startTrack)
+    val startIndex = queue.indexOfFirst { it.uri == startTrack.uri }
     setMediaItems(queue.map { it.toMediaItem(demoUri) }, startIndex, 0L)
     prepare()
     if (playNow) play()

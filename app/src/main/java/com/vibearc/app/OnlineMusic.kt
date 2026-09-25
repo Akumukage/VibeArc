@@ -22,8 +22,24 @@ import java.util.TimeZone
 
 internal data class AudioCandidate(val url: String, val bitrate: Int)
 
-internal fun selectAudioUrl(candidates: List<AudioCandidate>): String? =
-    candidates.filter { it.url.isNotBlank() }.maxByOrNull(AudioCandidate::bitrate)?.url
+internal fun selectAudioUrl(candidates: List<AudioCandidate>, preferHighestQuality: Boolean = true): String? {
+    val playable = candidates.filter { it.url.isNotBlank() }
+    return if (preferHighestQuality) {
+        playable.maxByOrNull(AudioCandidate::bitrate)?.url
+    } else {
+        (playable.filter { it.bitrate <= 160 }.maxByOrNull(AudioCandidate::bitrate)
+            ?: playable.minByOrNull(AudioCandidate::bitrate))?.url
+    }
+}
+
+private val GoogleArtworkSize = Regex("=w\\d+-h\\d+[^?]*$")
+
+internal fun highResolutionArtworkUrl(url: String): String =
+    if ("googleusercontent.com" in url && GoogleArtworkSize.containsMatchIn(url)) {
+        url.replace(GoogleArtworkSize, "=w1024-h1024-l90-rj")
+    } else {
+        url
+    }
 
 internal fun parseInnertubeSearch(json: String): List<Track> {
     val renderers = mutableListOf<JsonObject>()
@@ -33,15 +49,16 @@ internal fun parseInnertubeSearch(json: String): List<Track> {
         val columns = renderer.getArray("flexColumns")
         val title = columnRuns(columns, 0).firstOrNull()?.getString("text", "").orEmpty()
         if (videoId.isBlank() || title.isBlank()) return@mapNotNull null
-        val details = columnRuns(columns, 1)
-        val artist = details.firstNotNullOfOrNull { run ->
-            run.getObject("navigationEndpoint")
-                .getObject("browseEndpoint")
-                .getString("browseId", "")
-                .takeIf { it.startsWith("UC") }
-                ?.let { run.getString("text", "") }
+        val metadataRuns = rendererRuns(renderer)
+        val artist = metadataRuns.firstNotNullOfOrNull { run ->
+            run.takeIf { it.musicPageType() == "MUSIC_PAGE_TYPE_ARTIST" || it.browseId().startsWith("UC") }
+                ?.getString("text", "")
         }?.takeIf(String::isNotBlank) ?: "YouTube Music"
-        val durationMs = details.asSequence()
+        val album = metadataRuns.firstNotNullOfOrNull { run ->
+            run.takeIf { it.musicPageType() == "MUSIC_PAGE_TYPE_ALBUM" || it.browseId().startsWith("MPRE") }
+                ?.getString("text", "")
+        }?.takeIf(String::isNotBlank) ?: "YouTube Music"
+        val durationMs = metadataRuns.asSequence()
             .map { it.getString("text", "") }
             .firstOrNull { it.matches(DurationPattern) }
             ?.split(':')
@@ -51,9 +68,18 @@ internal fun parseInnertubeSearch(json: String): List<Track> {
         Track(
             title = title,
             artist = artist,
-            album = "YouTube Music",
+            album = album,
             uri = "https://music.youtube.com/watch?v=$videoId",
             durationMs = durationMs,
+            artworkUri = renderer.getObject("thumbnail")
+                .getObject("musicThumbnailRenderer")
+                .getObject("thumbnail")
+                .getArray("thumbnails")
+                .mapNotNull { it as? JsonObject }
+                .map { it.getString("url", "") }
+                .lastOrNull(String::isNotBlank)
+                ?.let(::highResolutionArtworkUrl)
+                .orEmpty(),
             folder = "YouTube Music",
         )
     }.distinctBy(Track::uri).take(20)
@@ -78,6 +104,28 @@ private fun columnRuns(columns: JsonArray, index: Int): List<JsonObject> {
         .getArray("runs")
     return runs.mapNotNull { it as? JsonObject }
 }
+
+private fun rendererRuns(renderer: JsonObject): List<JsonObject> =
+    listOf("flexColumns", "fixedColumns").flatMap { key ->
+        renderer.getArray(key).flatMap { columnValue ->
+            val column = columnValue as? JsonObject ?: return@flatMap emptyList()
+            val text = column.getObject("musicResponsiveListItemFlexColumnRenderer", null)
+                ?.getObject("text")
+                ?: column.getObject("musicResponsiveListItemFixedColumnRenderer")
+                    .getObject("text")
+            text.getArray("runs").mapNotNull { it as? JsonObject }
+        }
+    }
+
+private fun JsonObject.browseId(): String = getObject("navigationEndpoint")
+    .getObject("browseEndpoint")
+    .getString("browseId", "")
+
+private fun JsonObject.musicPageType(): String = getObject("navigationEndpoint")
+    .getObject("browseEndpoint")
+    .getObject("browseEndpointContextSupportedConfigs")
+    .getObject("browseEndpointContextMusicConfig")
+    .getString("pageType", "")
 
 internal object OnlineMusic {
     private val youtube = ServiceList.YouTube
@@ -141,19 +189,35 @@ internal object OnlineMusic {
                     album = "YouTube Music",
                     uri = item.url,
                     durationMs = item.duration.coerceAtLeast(0) * 1_000,
+                    artworkUri = item.thumbnails.maxByOrNull { image ->
+                        image.width.coerceAtLeast(0) * image.height.coerceAtLeast(0)
+                    }?.url?.let(::highResolutionArtworkUrl).orEmpty(),
                     folder = "YouTube Music",
                 )
             }
     }
 
-    fun resolve(track: Track): Track {
+    fun resolve(track: Track, preferHighestQuality: Boolean = true): Track {
         val info = StreamInfo.getInfo(youtube, track.uri)
         val streamUrl = selectAudioUrl(
             info.audioStreams.map { stream ->
                 AudioCandidate(stream.content.takeIf { stream.isUrl }.orEmpty(), stream.averageBitrate)
             },
+            preferHighestQuality,
         ) ?: error("No playable public audio stream is available for this track.")
-        return track.copy(uri = streamUrl)
+        return track.copy(
+            title = track.title.ifBlank { info.name },
+            artist = track.artist.takeUnless { it == "YouTube Music" }
+                ?: info.uploaderName?.takeIf(String::isNotBlank)
+                ?: "YouTube Music",
+            uri = streamUrl,
+            durationMs = track.durationMs.takeIf { it > 0 } ?: info.duration.coerceAtLeast(0) * 1_000,
+            artworkUri = track.artworkUri.ifBlank {
+                info.thumbnails.maxByOrNull { image ->
+                    image.width.coerceAtLeast(0) * image.height.coerceAtLeast(0)
+                }?.url?.let(::highResolutionArtworkUrl).orEmpty()
+            },
+        )
     }
 }
 
