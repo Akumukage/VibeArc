@@ -30,10 +30,18 @@ for protected, restricted, or unavailable tracks.
 - Midnight, Peach, and Mono launcher-icon choices
 - Direct InnerTube search with a bounded NewPipe search fallback
 - On-demand public-stream resolution through NewPipeExtractor
+- Automatic YouTube Music search after a short typing pause
+- High-resolution online artwork and a persistent highest-quality audio option
 - Loading, empty, unavailable, and offline-friendly search states
 
-Current milestone: v0.7.0-demo is implemented locally. It remains an
-experimental GitHub-build candidate and is not considered a Google Play-safe
-production integration. NewPipeExtractor is GPLv3-or-later, so do not distribute
-this build until VibeArc adopts a compatible license and publishes corresponding
-source. See [`tasks/plan.md`](tasks/plan.md) for the limits.
+Current milestone: v0.7.0-demo is an experimental GitHub build and is not
+considered a Google Play-safe production integration. See
+[`tasks/plan.md`](tasks/plan.md) for the limits and the v0.8 theme-only milestone.
+
+## License
+
+VibeArc is free software licensed under the GNU General Public License version
+3 or any later version. See [`LICENSE`](LICENSE) and
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+Copyright © 2026 VibeArc contributors.

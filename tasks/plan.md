@@ -54,15 +54,19 @@ not a stable or policy-compliant route to a Google Play production release.
 - Ship only as an experimental GitHub build until licensing and policy review is
   complete.
 
-### v0.8 — Reliability and provider health
+### v0.8 — Theme redesign only
 
-- Add contract fixtures for response changes and extractor failures.
-- Add expiring-URL refresh, cancellation, timeouts, and provider health logging.
-- Preserve queue state without persisting remote media URLs.
-- Test slow networks, no network, removed content, and fallback behavior.
+- Replace the complete visual theme while keeping v0.7 playback and provider
+  behavior unchanged.
+- Rework color, typography, shapes, artwork treatment, and screen hierarchy as
+  one dedicated design milestone.
+- Do not add new music-provider or playback features in this version.
 
 ### v0.9 — Community beta and release decision
 
+- Add contract fixtures, expiring-URL refresh, cancellation, timeouts, and
+  minimal provider health logging.
+- Test slow networks, no network, removed content, and fallback behavior.
 - Publish privacy, copyright, provider-attribution, and GPL notices.
 - Run device testing and community beta feedback.
 - Decide between an experimental open-source distribution and a sanctioned
