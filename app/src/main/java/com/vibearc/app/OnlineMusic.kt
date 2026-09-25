@@ -17,6 +17,8 @@ import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
+import java.util.TimeZone
 
 internal data class AudioCandidate(val url: String, val bitrate: Int)
 
@@ -84,10 +86,14 @@ internal object OnlineMusic {
         NewPipe.init(ExtractorDownloader)
     }
 
-    fun search(query: String): List<Track> = runCatching {
-        searchInnertube(query)
-    }.getOrElse {
-        searchWithNewPipe(query)
+    fun search(query: String): List<Track> {
+        val cleanQuery = query.trim()
+        require(cleanQuery.isNotEmpty()) { "Search query cannot be blank" }
+        return try {
+            searchInnertube(cleanQuery)
+        } catch (_: Exception) {
+            searchWithNewPipe(cleanQuery)
+        }
     }
 
     private fun searchInnertube(query: String): List<Track> {
@@ -99,9 +105,9 @@ internal object OnlineMusic {
                         .value("clientName", "WEB_REMIX")
                         .value("clientVersion", version)
                         .value("hl", "en-GB")
-                        .value("gl", "IN")
+                        .value("gl", Locale.getDefault().country.ifBlank { "US" })
                         .value("platform", "DESKTOP")
-                        .value("utcOffsetMinutes", 330)
+                        .value("utcOffsetMinutes", TimeZone.getDefault().rawOffset / 60_000)
                     .end()
                     .`object`("request").array("internalExperimentFlags").end().value("useSsl", true).end()
                     .`object`("user").value("lockedSafetyMode", false).end()
@@ -132,7 +138,7 @@ internal object OnlineMusic {
                 Track(
                     title = item.name,
                     artist = item.uploaderName?.takeIf(String::isNotBlank) ?: "YouTube Music",
-                    album = "Online",
+                    album = "YouTube Music",
                     uri = item.url,
                     durationMs = item.duration.coerceAtLeast(0) * 1_000,
                     folder = "YouTube Music",

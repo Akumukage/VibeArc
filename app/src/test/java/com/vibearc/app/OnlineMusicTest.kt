@@ -2,9 +2,15 @@ package com.vibearc.app
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class OnlineMusicTest {
+    @Test
+    fun `blank searches are rejected before a network request`() {
+        assertThrows(IllegalArgumentException::class.java) { OnlineMusic.search("   ") }
+    }
+
     @Test
     fun `highest bitrate playable audio is selected`() {
         val candidates = listOf(
