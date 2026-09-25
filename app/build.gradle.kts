@@ -12,8 +12,8 @@ android {
         applicationId = "com.vibearc.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.6.0-demo"
+        versionCode = 7
+        versionName = "0.7.0-demo"
     }
 
     buildTypes {
@@ -27,6 +27,7 @@ android {
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -41,6 +42,7 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
@@ -50,6 +52,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.media3:media3-exoplayer:1.2.1")
     implementation("androidx.media3:media3-session:1.2.1")
+    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.5")
 
     testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
